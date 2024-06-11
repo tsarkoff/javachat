@@ -9,9 +9,9 @@ public class ControlProtocol extends Protocol implements Serializable {
 
     ControlProtocol() {
         super.features = Set.of(
-                //ControlProtoFeatures.values()
-                ControlProtoFeatures.CHECK_VERSIONS,
-                ControlProtoFeatures.REGISTER_NEW_USER
+                ControlProtoFeatures.values()
+                //ControlProtoFeatures.CHECK_VERSIONS,
+                //ControlProtoFeatures.REGISTER_NEW_USER
         );
     }
 

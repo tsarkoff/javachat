@@ -9,8 +9,8 @@ public class ChatProtocol extends Protocol implements Serializable {
 
     ChatProtocol() {
         super.features = Set.of(
-                //ChatProtoFeatures.values()
-                ChatProtoFeatures.TEXT
+                ChatProtoFeatures.values()
+                //ChatProtoFeatures.TEXT
         );
     }
 

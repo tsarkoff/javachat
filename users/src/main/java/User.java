@@ -10,51 +10,66 @@ public class User implements IUser {
 
     @Override
     public boolean setNickName(String nickName) {
-        return false;
+        if (nickName.isEmpty())
+            return false;
+        this.nickName = nickName;
+        return true;
     }
 
     @Override
     public String getNickName() {
-        return null;
+        return nickName;
     }
 
     @Override
-    public boolean setPermissions(UserPermissions userPermission) {
-        return false;
+    public boolean setPermissions(UserPermissions userPermissions) {
+        if (userPermissions == null)
+            return false;
+        this.userPermissions = userPermissions;
+        return true;
     }
 
     @Override
     public UserPermissions getPermissions() {
-        return null;
+        return userPermissions;
     }
 
     @Override
     public boolean setRating(int rating) {
-        return false;
+        if (rating < 0 || rating > 10)
+            return false;
+        userRating = rating;
+        return true;
     }
 
     @Override
     public int getRating() {
-        return 0;
+        return userRating;
     }
 
     @Override
     public boolean setFriends(Set<User> friends) {
-        return false;
+        if (friends == null)
+            return false;
+        this.friends = friends;
+        return true;
     }
 
     @Override
     public Set<User> getFriends() {
-        return null;
+        return friends;
     }
 
     @Override
     public boolean setRegistrationDateTime(LocalDateTime dt) {
-        return false;
+        if (dt == null)
+            return false;
+        registrationDateTime = dt;
+        return true;
     }
 
     @Override
     public LocalDateTime getRegistrationDateTime() {
-        return null;
+        return registrationDateTime;
     }
 }
