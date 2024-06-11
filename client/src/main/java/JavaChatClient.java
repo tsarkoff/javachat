@@ -20,10 +20,12 @@ public class JavaChatClient {
         try (Socket socket = new Socket("localhost", 9999)) {
             cs = socket;
             print("@bot", "connected to JavaChatServer Socket: " + cs + "\n");
-            consolePrintThread = new Thread(this::consolePrintWorker);
-            consolePrintThread.start(); // старт потока записи в консоль чата
+            out = new ObjectOutputStream(cs.getOutputStream());
             consoleScanThread = new Thread(this::consoleScanWorker);
             consoleScanThread.start(); // старт потока чтения из консоли чата
+            in = new ObjectInputStream(cs.getInputStream());
+            consolePrintThread = new Thread(this::consolePrintWorker);
+            consolePrintThread.start(); // старт потока записи в консоль чата
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
@@ -31,7 +33,6 @@ public class JavaChatClient {
 
     public void consolePrintWorker() {
         try { // ALERT! Using "try-with-resources()" for out/in Objects below = does auto-close Client Socket
-            in = new ObjectInputStream(cs.getInputStream());
             while (!isConsolePrintStopped) {
                 Message msg = (Message) in.readObject();
                 if (msg.sender.equals(JavaChatServer.SERVER_NAME)) { // handshake
@@ -49,11 +50,12 @@ public class JavaChatClient {
         Scanner scanner = new Scanner(System.in);
         print("@bot", "Welcome to JavaChat. Please enter your @nick name (or /exit to stop): ");
         try { // ALERT! Using "try-with-resources()" for out/in Objects below = does auto-close Client Socket
-            out = new ObjectOutputStream(cs.getOutputStream());
             while (!isConsoleScanStopped) {
                 String text = scanner.nextLine();
                 if (text.equals("/exit"))
                     exit();
+                if (text.equals("\n"))
+                    continue;
                 writeMessage(new Message(sender.isEmpty() ? sender = text : sender, sender.isEmpty() ? null : text));
             }
         } catch (IOException | InterruptedException e) {

@@ -11,11 +11,8 @@
     <modules>
         <module>client</module>
         <module>server</module>
-        <module>config</module>
-        <module>protocol</module>
         <module>logger</module>
         <module>services</module>
-        <module>users</module>
     </modules>
 
     <properties>

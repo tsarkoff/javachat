@@ -16,11 +16,12 @@ public final class JavaChatServer {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             sc = serverSocket;
             System.out.printf("JavaChatServer starter (%s:%s)\n", sc.getInetAddress(), sc.getLocalPort());
-            while (isServerStopped) {
+            while (!isServerStopped) {
                 Socket cs = sc.accept();
                 Thread clientThread = new Thread(() -> {
-                    try (var in = new BufferedInputStream(cs.getInputStream());
-                         var out = new BufferedOutputStream(cs.getOutputStream())) {
+                    try {
+                        var in = new BufferedInputStream(cs.getInputStream());
+                        var out = new BufferedOutputStream(cs.getOutputStream());
                         while (true) {
                             Message msg = readMessage(in);
                             if (msg.message.isEmpty()) { // handshake
