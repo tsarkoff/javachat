@@ -5,8 +5,10 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static java.lang.String.format;
+
 public final class JavaChatServer {
-    public static final String SERVER_NAME = "@JavaChatServer";
+    public static final String SERVER_NAME = "server";
     ServerSocket sc;
     private static final ConcurrentMap<String, BufferedOutputStream> clients = new ConcurrentHashMap<>();
     private static final List<Thread> clientThreads = new ArrayList<>();
@@ -15,45 +17,47 @@ public final class JavaChatServer {
     public void listen(int port) throws IOException {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             sc = serverSocket;
-            System.out.printf("JavaChatServer starter (%s:%s)\n", sc.getInetAddress(), sc.getLocalPort());
+            Logger.print(SERVER_NAME, format("started (%s:%s)\n", sc.getInetAddress(), sc.getLocalPort()));
             while (!isServerStopped) {
                 Socket cs = sc.accept();
-                Thread clientThread = new Thread(() -> {
+                var in = new BufferedInputStream(cs.getInputStream());
+                var out = new BufferedOutputStream(cs.getOutputStream());
+                Logger.print(SERVER_NAME, format("accepted new client socket (%s), streams (in: %s, out: %s)\n", cs, in, out));
+                clientThreads.add(new Thread(() -> {
                     try {
-                        var in = new BufferedInputStream(cs.getInputStream());
-                        var out = new BufferedOutputStream(cs.getOutputStream());
                         while (true) {
-                            Message msg = readMessage(in);
-                            if (msg.message.isEmpty()) { // handshake
+                            ObjectInputStream ois = new ObjectInputStream(in);
+                            Message msg = (Message) ois.readObject();
+                            if (msg.message == null) { // handshake
+                                ObjectOutputStream oos = new ObjectOutputStream(out);
                                 if (clients.containsValue(out))
-                                    writeMessage(out, new Message(SERVER_NAME, msg.sender + new Random().nextInt()));
+                                    msg.sender += new Random().nextInt();
                                 else
                                     clients.put(msg.sender, out);
+                                writeMessage(oos, new Message(SERVER_NAME, msg.sender));
+                                Logger.print(SERVER_NAME, "new client added to list: " + msg.sender + "\n");
                                 continue;
                             }
-                            for (BufferedOutputStream bos : clients.values())
-                                if (!bos.equals(out))
-                                    writeMessage(bos, msg);
+                            for (BufferedOutputStream bos : clients.values()) {
+                                if (!bos.equals(out)) {
+                                    ObjectOutputStream oos = new ObjectOutputStream(bos);
+                                    writeMessage(oos, msg);
+                                }
+                            }
                         }
                     } catch (IOException | ClassNotFoundException e) {
                         System.out.println(e.getMessage());
                     }
-                });
-                clientThreads.add(clientThread);
-                clientThread.start();
+                }));
+                clientThreads.getLast().start();
             }
         }
     }
 
-    private Message readMessage(BufferedInputStream in) throws IOException, ClassNotFoundException {
-        ObjectInputStream ois = new ObjectInputStream(in);
-        return (Message) ois.readObject();
-    }
-
-    private void writeMessage(BufferedOutputStream out, Message msg) throws IOException {
-        ObjectOutputStream oos = new ObjectOutputStream(out);
+    private void writeMessage(ObjectOutputStream oos, Message msg) throws IOException {
         oos.writeObject(msg);
         oos.flush();
+        //Logger.print(msg.sender, msg.message + "\n");
     }
 
     public void exit() throws IOException, InterruptedException {

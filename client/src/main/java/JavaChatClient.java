@@ -1,86 +1,75 @@
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
-import java.time.LocalTime;
 import java.util.Scanner;
 
 public class JavaChatClient {
     Socket cs;
-    private String sender;
-    private ObjectOutputStream out;
-    private ObjectInputStream in;
-    boolean isConsolePrintStopped;
-    boolean isConsoleScanStopped;
-    Thread consolePrintThread;
-    Thread consoleScanThread;
+    private String sender = "";
+//    ObjectOutputStream oos;
+//    ObjectInputStream ois;
 
     // Коннект к серверу и отправка Handshake сообщения
     public void connect() {
         try (Socket socket = new Socket("localhost", 9999)) {
             cs = socket;
-            print("@bot", "connected to JavaChatServer Socket: " + cs + "\n");
-            out = new ObjectOutputStream(cs.getOutputStream());
-            consoleScanThread = new Thread(this::consoleScanWorker);
-            consoleScanThread.start(); // старт потока чтения из консоли чата
-            in = new ObjectInputStream(cs.getInputStream());
-            consolePrintThread = new Thread(this::consolePrintWorker);
-            consolePrintThread.start(); // старт потока записи в консоль чата
+            var in = new BufferedInputStream(cs.getInputStream());
+            var out = new BufferedOutputStream(cs.getOutputStream());
+            Logger.print("bot", "connected to JavaChatServer Socket: " + cs + "\n");
+            // ALERT! Using "try-with-resources()" for out/in Objects below = does auto-close Client Socket
+            // Console Scan and Send Message - Thread
+            new Thread(() -> {
+                Scanner scanner = new Scanner(System.in);
+                Logger.print("bot", "Welcome to JavaChat. Please enter your nick name (or anytime /exit to stop): ");
+                while (true) {
+                    String text = scanner.nextLine();
+                    try {
+                        ObjectOutputStream oos = new ObjectOutputStream(out);
+                        if (text.equals("/exit"))
+                            exit();
+                        if (text.equals("\n"))
+                            continue;
+                        if (sender.isEmpty()) { // needs Handshake to accept nick name
+                            sender = text;
+                            text = null;
+                            Logger.print("bot", "handshake '" + sender + "' has sent to @server\n");
+                        } else {
+                            Logger.print(sender, "you are sending a text... : " + text + "\n");
+                        }
+                        oos.writeObject(new Message(sender, text));
+                        oos.flush();
+                    } catch (IOException e) {
+                        System.out.println(e.getMessage());
+                    }
+                }
+            }).start();
+            // Receive and Console Print Message - Thread
+            ObjectInputStream ois = new ObjectInputStream(in);
+            new Thread(() -> {
+                while (true) {
+                    Message msg;
+                    try {
+                        msg = (Message) ois.readObject();
+                    } catch (IOException | ClassNotFoundException e) {
+                        System.out.println(e.getMessage());
+                        Logger.print(sender, "");
+                        continue;
+                    }
+                    if (msg.sender.equals(JavaChatServer.SERVER_NAME)) { // handshake
+                        sender = msg.message;
+                        Logger.print("bot", "assigned your nick name: " + msg.message + "\n");
+                        Logger.print(sender, "");
+                        continue;
+                    }
+                    Logger.print(msg.sender, msg.message);
+                }
+            }).start();
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
     }
 
-    public void consolePrintWorker() {
-        try { // ALERT! Using "try-with-resources()" for out/in Objects below = does auto-close Client Socket
-            while (!isConsolePrintStopped) {
-                Message msg = (Message) in.readObject();
-                if (msg.sender.equals(JavaChatServer.SERVER_NAME)) { // handshake
-                    sender = msg.message;
-                    continue;
-                }
-                print(msg.sender, msg.message);
-            }
-        } catch (IOException | ClassNotFoundException e) {
-            System.out.println(e.getMessage());
-        }
-    }
-
-    private void consoleScanWorker() {
-        Scanner scanner = new Scanner(System.in);
-        print("@bot", "Welcome to JavaChat. Please enter your @nick name (or /exit to stop): ");
-        try { // ALERT! Using "try-with-resources()" for out/in Objects below = does auto-close Client Socket
-            while (!isConsoleScanStopped) {
-                String text = scanner.nextLine();
-                if (text.equals("/exit"))
-                    exit();
-                if (text.equals("\n"))
-                    continue;
-                writeMessage(new Message(sender.isEmpty() ? sender = text : sender, sender.isEmpty() ? null : text));
-            }
-        } catch (IOException | InterruptedException e) {
-            System.out.println(e.getMessage());
-        }
-    }
-
-    private void writeMessage(Message msg) throws IOException {
-        out.writeObject(msg); // send Handshake
-        out.flush();
-    }
-
-    private void print(String nick, String text) {
-        System.out.printf("[%s] %s > %s", LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")), nick, text);
-    }
-
-    public void exit() throws IOException, InterruptedException {
-        print("@bot", "JavaChatClient is finishing operation");
-        out.close();
-        in.close();
-        isConsolePrintStopped = true;
-        isConsoleScanStopped = true;
-        consolePrintThread.join();
-        consoleScanThread.join();
+    public void exit() throws IOException {
         cs.close();
-        print("@bot", "JavaChatClient stopped");
+        Logger.print("bot", "JavaChatClient stopped\n");
     }
 }
