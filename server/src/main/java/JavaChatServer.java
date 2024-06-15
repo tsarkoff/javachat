@@ -2,68 +2,52 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import static java.lang.String.format;
 
 public final class JavaChatServer {
+    public static final int SERVER_PORT = 8099;
     public static final String SERVER_NAME = "server";
-    ServerSocket sc;
-    private static final ConcurrentMap<String, BufferedOutputStream> clients = new ConcurrentHashMap<>();
-    private static final List<Thread> clientThreads = new ArrayList<>();
-    boolean isServerStopped;
+    private static final Map<String, ObjectOutputStream> clients = new HashMap<>();
 
-    public void listen(int port) throws IOException {
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            sc = serverSocket;
-            Logger.print(SERVER_NAME, format("started (%s:%s)\n", sc.getInetAddress(), sc.getLocalPort()));
-            while (!isServerStopped) {
+    public static void main(String[] args) throws IOException {
+        try (ServerSocket sc = new ServerSocket(SERVER_PORT)) {
+            Logger.print(SERVER_NAME, "started on port: " + sc.getLocalPort() + "\n");
+            while (true) {
                 Socket cs = sc.accept();
-                var in = new BufferedInputStream(cs.getInputStream());
-                var out = new BufferedOutputStream(cs.getOutputStream());
-                Logger.print(SERVER_NAME, format("accepted new client socket (%s), streams (in: %s, out: %s)\n", cs, in, out));
-                clientThreads.add(new Thread(() -> {
+                Logger.print(SERVER_NAME, "new anonymous client connected on port: " + cs.getPort() + "\n");
+                new Thread(() -> {
                     try {
+                        var oos = new ObjectOutputStream(new BufferedOutputStream(cs.getOutputStream()));
+                        oos.flush();
+                        var ois = new ObjectInputStream(new BufferedInputStream(cs.getInputStream()));
                         while (true) {
-                            ObjectInputStream ois = new ObjectInputStream(in);
                             Message msg = (Message) ois.readObject();
-                            if (msg.message == null) { // handshake
-                                ObjectOutputStream oos = new ObjectOutputStream(out);
-                                if (clients.containsValue(out))
-                                    msg.sender += new Random().nextInt();
-                                else
-                                    clients.put(msg.sender, out);
-                                writeMessage(oos, new Message(SERVER_NAME, msg.sender));
-                                Logger.print(SERVER_NAME, "new client added to list: " + msg.sender + "\n");
+                            if (msg.text == null) { // handshake
+                                String nick = clients.containsKey(msg.sender) ? msg.sender + "_" + Math.abs(new Random().nextInt()) : msg.sender;
+                                clients.put(nick, oos);
+                                Logger.print(SERVER_NAME, format("new client accepted, requested nick: '%s', assigned nick: %s\n", msg.sender, nick));
+                                oos.writeObject(new Message(SERVER_NAME, nick));
+                                oos.flush();
                                 continue;
                             }
-                            for (BufferedOutputStream bos : clients.values()) {
-                                if (!bos.equals(out)) {
-                                    ObjectOutputStream oos = new ObjectOutputStream(bos);
-                                    writeMessage(oos, msg);
+                            for (ObjectOutputStream out : clients.values()) {
+                                Logger.print(SERVER_NAME, format("new message received - sender: %s, text: %s\n", msg.sender, msg.text));
+                                if (!out.equals(oos)) {
+                                    out.writeObject(msg);
+                                    out.flush();
+                                    Logger.print(SERVER_NAME, format("received message '%s' has sent to client: %s",
+                                            msg.text,
+                                            clients.entrySet().stream().filter(e -> e.getValue().equals(out)).findFirst().get().getKey())
+                                    );
                                 }
                             }
                         }
                     } catch (IOException | ClassNotFoundException e) {
-                        System.out.println(e.getMessage());
+                        e.printStackTrace();
                     }
-                }));
-                clientThreads.getLast().start();
+                }).start();
             }
         }
-    }
-
-    private void writeMessage(ObjectOutputStream oos, Message msg) throws IOException {
-        oos.writeObject(msg);
-        oos.flush();
-        //Logger.print(msg.sender, msg.message + "\n");
-    }
-
-    public void exit() throws IOException, InterruptedException {
-        isServerStopped = true;
-        sc.close();
-        for (Thread thread : clientThreads)
-            thread.join();
     }
 }

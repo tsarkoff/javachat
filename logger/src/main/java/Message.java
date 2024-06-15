@@ -6,12 +6,12 @@ import java.time.LocalDateTime;
 @ToString
 public class Message implements Serializable {
     public String sender;
-    public String message;
+    public String text;
     public String timeStamp;
 
-    public Message(String sender, String message) {
+    public Message(String sender, String text) {
         this.sender = sender;
-        this.message = message;
+        this.text = text;
         this.timeStamp = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
 }
