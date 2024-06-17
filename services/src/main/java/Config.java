@@ -3,7 +3,9 @@ import java.io.IOException;
 import java.util.Properties;
 
 public class Config {
-    private static final String CONFIG_FILE = "./setts.cfg";
+    public static final String EXIT = "/exit";
+    public static final String STOP = "/stop";
+    private static final String CONFIG_FILE = "./settings.txt";
     public static String ADDRESS;
     public static int PORT;
 
@@ -16,7 +18,7 @@ public class Config {
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
-        ADDRESS = properties.getProperty("PORT");
+        ADDRESS = properties.getProperty("ADDRESS");
         PORT = Integer.parseInt(properties.getProperty("PORT"));
     }
 }
