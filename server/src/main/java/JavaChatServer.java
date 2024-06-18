@@ -6,21 +6,19 @@ import java.util.*;
 
 import static java.lang.String.format;
 
-public final class JavaChatServer {
-    public static final String SERVER_NAME = "server";
+public class JavaChatServer {
     static ServerSocket serverSocket;
     private static final Map<String, ObjectOutputStream> clients = new HashMap<>();
-    private static Logger logger = null;
     private static boolean run = true;
 
-    public static void main(String[] args) {
+    public void listen() {
         try (ServerSocket sc = new ServerSocket(Config.PORT)) {
             serverSocket = sc;
-            logger = new Logger(Paths.get("").toAbsolutePath() + Logger.SERVER_LOG);
-            logger.print(SERVER_NAME, "started on port: " + sc.getLocalPort() + "\n");
+            Logger.getLogger(Paths.get("").toAbsolutePath() + Logger.SERVER_LOG);
+            Logger.getLogger().println(Config.SERVER_NAME, "started on port: " + sc.getLocalPort());
             while (run) {
                 Socket cs = sc.accept();
-                logger.print(SERVER_NAME, "new anonymous client connected on port: " + cs.getPort() + "\n");
+                Logger.getLogger().println(Config.SERVER_NAME, "new anonymous client connected on port: " + cs.getPort());
                 new Thread(() -> {
                     Message msg = null;
                     ObjectOutputStream oos = null;
@@ -43,31 +41,31 @@ public final class JavaChatServer {
                         if (e.getClass().equals(IOException.class) && msg != null && msg.sender.equals(e.getMessage()))
                             releaseClient(oos);
                         else
-                            System.out.println(e.getMessage() == null ? "\nClient thread stops\n" : e.getMessage()); // e.printStackTrace();
+                            Logger.getLogger().lnprint(Config.SERVER_NAME, e.getMessage() == null ? "Client thread stops" : e.getMessage()); // e.printStackTrace();
                     }
                 }).start();
             }
         } catch (IOException e) {
-            logger.println(SERVER_NAME, "JavaChatServer stops (!)" + "\n");
+            Logger.getLogger().println(Config.SERVER_NAME, "JavaChatServer stops (!)");
         }
     }
 
     public static void handshake(Message msg, ObjectOutputStream oos) throws IOException {
         String nick = clients.containsKey(msg.sender) ? msg.sender + "_" + Math.abs(new Random().nextInt()) : msg.sender;
         clients.put(nick, oos);
-        logger.print(SERVER_NAME, format("new client accepted, requested nick: '%s', assigned nick: %s\n", msg.sender, nick));
-        oos.writeObject(new Message(SERVER_NAME, nick));
+        Logger.getLogger().println(Config.SERVER_NAME, format("new client accepted, requested nick: '%s', assigned nick: %s", msg.sender, nick)).log(msg);
+        oos.writeObject(new Message(Config.SERVER_NAME, nick));
         oos.flush();
     }
 
     public static synchronized void sendToAll(Message msg, ObjectOutputStream oos) throws IOException {
-        logger.print(SERVER_NAME, format("message posted - sender: %s, text: %s", msg.sender, msg.text));
+        Logger.getLogger().println(Config.SERVER_NAME, format("message posted - sender: %s, text: %s", msg.sender, msg.text)).log(msg);
         for (String recipient : clients.keySet()) {
             ObjectOutputStream out = clients.get(recipient);
             if (!out.equals(oos)) {
                 out.writeObject(msg);
                 out.flush();
-                logger.print(SERVER_NAME, format("message transferred - sender: %s, recipient: %s, text: %s", msg.sender, recipient, msg.text));
+                Logger.getLogger().println(Config.SERVER_NAME, format("message transferred - sender: %s, recipient: %s, text: %s", msg.sender, recipient, msg.text)).log(msg);
             }
         }
     }
@@ -80,7 +78,7 @@ public final class JavaChatServer {
                 releasedClient = client;
                 break;
             }
-        logger.print(SERVER_NAME, format("client disconnected: %s\n", releasedClient));
+        Logger.getLogger().println(Config.SERVER_NAME, format("client disconnected: %s", releasedClient));
     }
 
     public static void stop() throws IOException {

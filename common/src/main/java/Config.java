@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.util.Properties;
 
 public class Config {
+    public static final String SERVER_NAME = "server";
     public static final String EXIT = "/exit";
     public static final String STOP = "/stop";
     private static final String CONFIG_FILE = "./settings.txt";
