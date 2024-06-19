@@ -26,7 +26,7 @@ public class JavaChatClient {
         oos = new ObjectOutputStream(new BufferedOutputStream(cs.getOutputStream()));
         oos.flush();
         inputAndSend = new Thread(() -> {
-            Logger.getLogger().print(Config.BOT, "Welcome to JavaChat. Please enter Config.YOUr nick name (or anytime '/exit' to stop): ");
+            Logger.getLogger().print(Config.BOT, "Welcome to JavaChat. Please enter yours nick name (or anytime '/exit' to stop): ");
             while (true) {
                 try {
                     if (!withoutScanner && scanner.hasNext()) {
