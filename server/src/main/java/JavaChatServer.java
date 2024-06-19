@@ -1,7 +1,6 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.file.Paths;
 import java.util.*;
 
 import static java.lang.String.format;
@@ -14,34 +13,29 @@ public class JavaChatServer {
     public void listen() {
         try (ServerSocket sc = new ServerSocket(Config.PORT)) {
             serverSocket = sc;
-            Logger.getLogger(Paths.get("").toAbsolutePath() + Logger.SERVER_LOG);
+            Logger.getLogger(Logger.SERVER_LOG); // init with log file name
             Logger.getLogger().println(Config.SERVER_NAME, "started on port: " + sc.getLocalPort());
             while (run) {
                 Socket cs = sc.accept();
                 Logger.getLogger().println(Config.SERVER_NAME, "new anonymous client connected on port: " + cs.getPort());
                 new Thread(() -> {
-                    Message msg = null;
-                    ObjectOutputStream oos = null;
+                    Message msg = new Message("unknown", null);
+                    ObjectOutputStream oos;
                     try {
                         oos = new ObjectOutputStream(new BufferedOutputStream(cs.getOutputStream()));
                         oos.flush();
                         var ois = new ObjectInputStream(new BufferedInputStream(cs.getInputStream()));
-                        while (true) {
+                        while (run) {
                             msg = (Message) ois.readObject();
                             if (msg.text == null) { // handshake
                                 handshake(msg, oos);
                                 continue;
-                            } else if (msg.text.equals(Config.EXIT))
-                                throw new IOException(msg.sender);
-                            else if (msg.text.equals(Config.STOP))
-                                stop();
+                            }
                             sendToAll(msg, oos);
                         }
                     } catch (IOException | ClassNotFoundException e) {
-                        if (e.getClass().equals(IOException.class) && msg != null && msg.sender.equals(e.getMessage()))
-                            releaseClient(oos);
-                        else
-                            Logger.getLogger().lnprint(Config.SERVER_NAME, e.getMessage() == null ? "Client thread stops" : e.getMessage()); // e.printStackTrace();
+                        Logger.getLogger().lnprint(Config.SERVER_NAME, e.getMessage() == null ? "Client @" + msg.sender + " thread stops" : e.getMessage()); // e.printStackTrace();
+                        clients.remove(msg.sender);
                     }
                 }).start();
             }
@@ -50,7 +44,7 @@ public class JavaChatServer {
         }
     }
 
-    public static void handshake(Message msg, ObjectOutputStream oos) throws IOException {
+    public void handshake(Message msg, ObjectOutputStream oos) throws IOException {
         String nick = clients.containsKey(msg.sender) ? msg.sender + "_" + Math.abs(new Random().nextInt()) : msg.sender;
         clients.put(nick, oos);
         Logger.getLogger().println(Config.SERVER_NAME, format("new client accepted, requested nick: '%s', assigned nick: %s", msg.sender, nick)).log(msg);
@@ -58,7 +52,7 @@ public class JavaChatServer {
         oos.flush();
     }
 
-    public static synchronized void sendToAll(Message msg, ObjectOutputStream oos) throws IOException {
+    public synchronized void sendToAll(Message msg, ObjectOutputStream oos) throws IOException {
         Logger.getLogger().println(Config.SERVER_NAME, format("message posted - sender: %s, text: %s", msg.sender, msg.text)).log(msg);
         for (String recipient : clients.keySet()) {
             ObjectOutputStream out = clients.get(recipient);
@@ -70,18 +64,7 @@ public class JavaChatServer {
         }
     }
 
-    public static synchronized void releaseClient(ObjectOutputStream oos) {
-        String releasedClient = "unknown";
-        for (String client : clients.keySet())
-            if (clients.get(client).equals(oos)) {
-                clients.remove(client);
-                releasedClient = client;
-                break;
-            }
-        Logger.getLogger().println(Config.SERVER_NAME, format("client disconnected: %s", releasedClient));
-    }
-
-    public static void stop() throws IOException {
+    public void stop() throws IOException {
         run = false;
         serverSocket.close();
     }

@@ -1,53 +1,49 @@
 import java.io.*;
 import java.net.Socket;
-import java.nio.file.Paths;
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class JavaChatClient {
-    public static final String BOT = "bot";
-    public static final String YOU = "(you)";
-    public static Thread inputAndSend = null;
-    public static Thread receiveAndPrint = null;
-    private static String name = "";
+    public static boolean withoutScanner = false;
+    private static Socket cs;
+    public Thread inputAndSend = null;
+    public Thread receiveAndPrint = null;
+    public ObjectOutputStream oos = null;
+    private final Scanner scanner = new Scanner(System.in);
+    public String name = "";
     private static final AtomicBoolean run = new AtomicBoolean(true);
 
-    public void connect() throws IOException, InterruptedException {
-        Socket cs = new Socket(Config.ADDRESS, Config.PORT);
-        Logger.getLogger(Paths.get("").toAbsolutePath() + Logger.CLIENT_LOG);
-        var oos = new ObjectOutputStream(new BufferedOutputStream(cs.getOutputStream()));
+    JavaChatClient() {
+    }
+
+    JavaChatClient(boolean withoutScanner) {
+        JavaChatClient.withoutScanner = withoutScanner;
+    }
+
+    public void connect() throws IOException {
+        Logger.getLogger(Logger.CLIENT_LOG);
+        cs = new Socket(Config.ADDRESS, Config.PORT);
+        oos = new ObjectOutputStream(new BufferedOutputStream(cs.getOutputStream()));
         oos.flush();
         inputAndSend = new Thread(() -> {
-            var scanner = new Scanner(System.in);
-            Logger.getLogger().print(BOT, "Welcome to JavaChat. Please enter your nick name (or anytime '/exit' to stop): ");
+            Logger.getLogger().print(Config.BOT, "Welcome to JavaChat. Please enter Config.YOUr nick name (or anytime '/exit' to stop): ");
             while (true) {
-                String text = scanner.nextLine();
                 try {
-                    if (name.isEmpty()) { // needs Handshake to accept nick
-                        name = text;
-                        text = null;
-                        Logger.getLogger().println(BOT, "handshake '" + name + "' has sent to @server");
-                    }
-
-                    Message msg = new Message(name, text);
-                    //Logger.getLogger().println(BOT, "you are sending a message... : " + text).log(msg);
-                    Logger.getLogger().print(name + YOU, "");
-
-                    oos.writeObject(msg);
-                    oos.flush();
-
-                    if (text != null && (text.equalsIgnoreCase(Config.EXIT) || text.equalsIgnoreCase(Config.STOP))) {
-                        Logger.getLogger().println(BOT, "JavaChatClient stops");
-                        oos.close();
-                        scanner.close();
-                        cs.close();
-                        run.set(false);
+                    if (!withoutScanner && scanner.hasNext()) {
+                        String text = scanner.nextLine();
+                        tryHandshake(text);
+                        sendMessage(new Message(name, text));
+                        if (!tryExit(text))
+                            Logger.getLogger().print(name + Config.YOU, "");
+                    } else
                         break;
-                    }
-                } catch (IOException e) {
+                } catch (Exception e) { // Scanner closed()
+                    Logger.getLogger().print(Config.BOT, "");
                     System.out.println(e.getMessage());
+                    break;
                 }
             }
+            Logger.getLogger().println(Config.BOT, "Client @" + name + " thread 'Input-And-Send' stops");
         });
         inputAndSend.start();
 
@@ -58,23 +54,54 @@ public class JavaChatClient {
                     Message msg = (Message) ois.readObject();
                     if (msg.sender.equals(Config.SERVER_NAME)) { // handshake
                         name = msg.text;
-                        Logger.getLogger().println(BOT, "assigned your nick name: " + msg.text).log(msg);
-                        Logger.getLogger().print(name + YOU, "");
+                        Logger.getLogger().println(Config.BOT, "assigned your nick name: " + msg.text).log(msg);
+                        Logger.getLogger().print(name + Config.YOU, "");
                         continue;
                     }
                     Logger.getLogger().lnprint(msg.sender, msg.text).log(msg);
-                    Logger.getLogger().print(name + YOU, "");
+                    Logger.getLogger().print(name + Config.YOU, "");
                 }
-                ois.close();
-                cs.close();
             } catch (IOException | ClassNotFoundException e) {
-                Logger.getLogger().print(BOT, "");
+                Logger.getLogger().print(Config.BOT, "");
                 System.out.println(e.getMessage());
             }
+            Logger.getLogger().println(Config.BOT, "Client @" + name + " thread 'Receive-And-Print' stops");
         });
         receiveAndPrint.start();
+    }
 
-        inputAndSend.join();
-        receiveAndPrint.join();
+    public void tryHandshake(String nick) {
+        if (name.isEmpty()) { // needs Handshake to accept nick
+            name = nick;
+            Logger.getLogger().println(Config.BOT, "handshake '" + name + "' has sent to @server");
+            sendMessage(new Message(name, null)); // handshake detected by NULL msg.text
+        }
+    }
+
+    public void sendMessage(Message msg) {
+        try {
+            oos.writeObject(msg);
+            oos.flush();
+        } catch (IOException e) {
+            Logger.getLogger().print(Config.BOT, "");
+            System.out.println(e.getMessage());
+        }
+    }
+
+    public boolean tryExit(String text) {
+        if (text.equalsIgnoreCase(Config.EXIT)) {
+            Logger.getLogger().println(Config.BOT, "JavaChatClient @" + name + " stops");
+            try {
+                oos.close();
+                scanner.close();
+                cs.close();
+                run.set(false);
+                return true;
+            } catch (IOException e) {
+                Logger.getLogger().print(Config.BOT, "");
+                System.out.println(e.getMessage());
+            }
+        }
+        return false;
     }
 }

@@ -6,8 +6,8 @@ import java.time.LocalTime;
 import static java.lang.String.format;
 
 public class Logger {
-    public static final String SERVER_LOG = "./server_log.txt";
-    public static final String CLIENT_LOG = "./clients_log.txt";
+    public static final String SERVER_LOG = "log_server.txt";
+    public static final String CLIENT_LOG = "log_clients.txt";
     public static String CRLF = "";
     private static Logger logger = null;
     private final FileWriter fileWriter;
@@ -38,7 +38,8 @@ public class Logger {
     }
 
     private Logger(String logFilePath) throws IOException {
-        fileWriter = new FileWriter(logFilePath);
+        String absoluteLogFilePath = Config.getAbsoluteFilePath(logFilePath);
+        fileWriter = new FileWriter(absoluteLogFilePath, true);
         fileWriter.flush();
     }
 
@@ -64,9 +65,8 @@ public class Logger {
     }
 
     public synchronized void log(Message msg) throws IOException {
-        // нужно дотюнить Лог = в файл пишется иногда крокозябла (может synchronized надо)
         if (msg.text != null && !msg.text.isEmpty() && !msg.text.isBlank()) {
-            String record = String.format("[%s] [%s]\t@%s> %s\n", LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")), msg.id, msg.sender, msg.text);
+            String record = String.format("\n[%s] [%s]\t@%s> %s", LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")), msg.id, msg.sender, msg.text);
             fileWriter.append(record);
             fileWriter.flush();
         }
